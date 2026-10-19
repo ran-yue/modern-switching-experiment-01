@@ -11,4 +11,45 @@ def summarize(raw, cfg):
     raw['completed']元素含payload_bits、delay_ticks、user。
     要检查generated=delivered+dropped+backlog，不相等抛ValueError。
     """
-    raise NotImplementedError('TODO: implement comparison metrics')
+    generated = raw["generated_payload_bits"]
+    delivered = raw["delivered_payload_bits"]
+    dropped = raw["dropped_payload_bits"]
+    backlog = raw["backlog_payload_bits"]
+    wire_sent = raw["wire_sent_bits"]
+    completed = raw["completed"]
+
+    # 守恒检查：生成 payload 不等于 交付 + 丢弃 + 积压 时抛出 ValueError
+    if generated != delivered + dropped + backlog:
+        raise ValueError(
+            f"Payload conservation violated: {generated} != {delivered} + {dropped} + {backlog}"
+        )
+
+    total_capacity = cfg.ticks * cfg.slot_bits
+    payload_utilization = delivered / total_capacity
+    wire_utilization = wire_sent / total_capacity
+
+    if not completed:
+        mean_delay_ms = None
+        max_delay_ms = None
+    else:
+        delays = [
+            (item["delay_ticks"] if isinstance(item, dict) else item.delay_ticks)
+            for item in completed
+        ]
+        mean_delay_ms = (sum(delays) / len(delays)) * cfg.tick_ms
+        max_delay_ms = max(delays) * cfg.tick_ms
+
+    if generated == 0:
+        loss_ratio = 0.0
+    else:
+        loss_ratio = dropped / generated
+
+    return {
+        "payload_utilization": payload_utilization,
+        "wire_utilization": wire_utilization,
+        "mean_delay_ms": mean_delay_ms,
+        "max_delay_ms": max_delay_ms,
+        "loss_ratio": loss_ratio,
+        "backlog_payload_bits": backlog,
+    }
+

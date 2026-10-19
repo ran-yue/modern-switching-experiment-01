@@ -6,4 +6,23 @@ def serve_packet(queue, tick, cfg):
     分组允许跨tick续传，但不得与其他分组交错，不能因大于一个时隙就丢弃。
     返回(线速发送比特数,完整发送的Pending列表)；空队列返回(0,[])。
     """
-    raise NotImplementedError('TODO: implement shared FIFO packet service')
+    if not queue:
+        return 0, []
+
+    budget = cfg.slot_bits
+    wire_bits = 0
+    completed_records = []
+
+    while queue and budget > 0:
+        head = queue[0]
+        sent = min(budget, head.remaining_wire_bits)
+
+        head.remaining_wire_bits -= sent
+        wire_bits += sent
+        budget -= sent
+
+        if head.remaining_wire_bits == 0:
+            completed_records.append(queue.popleft())
+
+    return wire_bits, completed_records
+
